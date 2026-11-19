@@ -126,15 +126,3 @@ Tabel `tbl_transaksi` telah ditambahkan kolom `poin_didapat` untuk mencatat poin
 
 1. **Pastikan Apache & MySQL di XAMPP sudah Aktif** (`Start` Apache & MySQL di XAMPP Control Panel).
 2. Buka browser dan jalankan migrasi database (1-Klik):
-   ```
-   http://localhost/agsmart/setup.php
-   ```
-   Klik tombol **"Jalankan Migrasi Sekarang"**.
-3. Buka halaman utama kasir:
-   ```
-   http://localhost/agsmart/
-   ```
-4. **Coba Sistem Tap Kartu Member**:
-   - Di halaman kasir, klik tombol **"Tap Member (F3)"** atau tekan tombol <kbd>F3</kbd> pada keyboard.
-   - Tempelkan kartu member fisik atau klik salah satu kartu contoh (misal: *Andi - Platinum*).
-   - Member akan terpasang, diskon 10% langsung otomatis aktif di keranjang, dan Anda dapat memilih metode pembayaran **Saldo Member**!
