@@ -8,8 +8,11 @@ let selectedPayment = null;
 const PAYMENT_LABELS = {
     transfer: 'Transfer Bank',
     qris: 'QRIS',
+    duitku: 'Pembayaran Duitku',
     ewallet: 'E-Wallet / Saldo Member'
 };
+let duitkuMethodsAmount = null;
+let duitkuMethodsLoading = false;
 function formatRupiah(n) {
     return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 }
@@ -108,14 +111,55 @@ function selectPayment(method) {
     });
     const extra = document.getElementById('paymentExtra');
     const proof = document.getElementById('proofUpload');
+    const duitkuWrap = document.getElementById('duitkuPaymentWrap');
     const needsProof = method === 'transfer' || method === 'qris';
     if (extra) extra.hidden = false;
     if (proof) proof.hidden = !needsProof;
+    if (duitkuWrap) duitkuWrap.hidden = method !== 'duitku';
     const info = document.getElementById('methodInfo');
     if (info) {
         if (method === 'transfer') info.innerHTML = '<div class="proof-hint">Transfer ke rekening toko lalu unggah bukti transfer. Diproses setelah kasir verifikasi.</div>';
         else if (method === 'qris') info.innerHTML = '<div class="proof-hint">Scan QRIS lalu unggah bukti pembayaran.</div>';
+        else if (method === 'duitku') {
+            info.innerHTML = '<div class="proof-hint">Pembayaran diverifikasi otomatis oleh Duitku. Stok dilepas setelah status pembayaran berhasil atau kedaluwarsa dikonfirmasi.</div>';
+            loadDuitkuMethods();
+        }
         else info.innerHTML = '<div class="proof-hint">Bayar dengan saldo e-wallet kartu member. Saldo dipotong setelah konfirmasi.</div>';
+    }
+}
+async function loadDuitkuMethods() {
+    const select = document.getElementById('duitkuPaymentMethod');
+    const status = document.getElementById('duitkuMethodStatus');
+    const amountInput = document.getElementById('checkoutTotalInput');
+    if (!select || !status || !amountInput || duitkuMethodsLoading) return;
+
+    const amount = Number(amountInput.value || 0);
+    if (duitkuMethodsAmount === amount && select.options.length > 0 && select.options[0].value !== '') return;
+    duitkuMethodsLoading = true;
+    select.disabled = true;
+    select.innerHTML = '<option value="">Memuat metode pembayaran...</option>';
+    status.textContent = '';
+    try {
+        const response = await fetch(`${API_BASE}/duitku_methods.php?amount=${encodeURIComponent(amount)}`, { headers: { Accept: 'application/json' } });
+        const result = await response.json();
+        if (!response.ok || !result.status || !Array.isArray(result.data)) throw new Error(result.message || 'Metode pembayaran Duitku tidak dapat dimuat.');
+        select.innerHTML = '';
+        result.data.forEach(method => {
+            const option = document.createElement('option');
+            option.value = method.code;
+            option.textContent = `${method.name}${method.fee > 0 ? ' - biaya ' + formatRupiah(method.fee) : ''}`;
+            select.appendChild(option);
+        });
+        if (!result.data.length) throw new Error('Belum ada kanal pembayaran aktif pada akun Duitku.');
+        duitkuMethodsAmount = amount;
+        select.disabled = false;
+        status.textContent = 'Kanal dan biaya mengikuti metode yang aktif pada akun Duitku.';
+    } catch (error) {
+        select.innerHTML = '<option value="">Metode pembayaran tidak tersedia</option>';
+        status.textContent = error.message || 'Tidak dapat memuat metode pembayaran Duitku.';
+        duitkuMethodsAmount = null;
+    } finally {
+        duitkuMethodsLoading = false;
     }
 }
 function escapeHtml(t) {
@@ -153,6 +197,15 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('action', 'order');
             formData.append('method', selectedPayment);
             formData.append('items', JSON.stringify(cart));
+            if (selectedPayment === 'duitku') {
+                const paymentMethod = document.getElementById('duitkuPaymentMethod');
+                if (!paymentMethod || !paymentMethod.value) {
+                    showToast('Pilih kanal pembayaran Duitku terlebih dahulu.', 'warning');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Pesan Sekarang & Bayar'; }
+                    return;
+                }
+                formData.append('payment_method', paymentMethod.value);
+            }
             const file = document.getElementById('buktiTransfer').files[0];
             if (file) formData.append('bukti_transfer', file);
             try {
@@ -163,6 +216,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     cart = [];
                     updateCartBadge();
                     showToast(json.message, 'success');
+                    if (json.data && json.data.payment_url) {
+                        window.location.assign(json.data.payment_url);
+                        return;
+                    }
                     setTimeout(() => { location.href = 'customer_orders.php'; }, 800);
                 } else {
                     showToast(json.message, 'danger');

@@ -8,6 +8,11 @@ requireCustomer();
 $db = getDB();
 $orders = []; $transactions = [];
 if ($db) {
+    require_once __DIR__ . '/config/duitku_orders.php';
+    syncExpiredDuitkuOrders($db, (int)$_SESSION['customer_id']);
+    if (($_GET['payment'] ?? '') === 'duitku' && !empty($_GET['merchantOrderId'])) {
+        syncDuitkuReturn($db, (string)$_GET['merchantOrderId'], (int)$_SESSION['customer_id']);
+    }
     try {
         $stmt = $db->prepare("SELECT t.id_transaksi, t.no_faktur, t.tanggal, t.waktu, t.total_belanja, t.metode_pembayaran, COUNT(d.id_detail) AS jumlah_item FROM tbl_transaksi t LEFT JOIN tbl_detail_transaksi d ON d.id_transaksi = t.id_transaksi WHERE t.id_pelanggan = ? GROUP BY t.id_transaksi ORDER BY t.tanggal DESC, t.waktu DESC, t.id_transaksi DESC");
         $stmt->execute([$_SESSION['customer_id']]);
@@ -24,6 +29,7 @@ if ($db) {
     } catch (Exception $e) {}
 }
 $statusBadge = [
+    'menunggu_pembayaran' => ['status-pending', 'Menunggu Pembayaran'],
     'menunggu_verifikasi' => ['status-pending', 'Menunggu Verifikasi'],
     'diproses'            => ['status-proses', 'Diproses'],
     'selesai'             => ['status-selesai', 'Selesai'],
@@ -36,6 +42,7 @@ $statusBadge = [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $pageTitle ?> - AGSMART POS</title>
+    <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -78,6 +85,9 @@ $statusBadge = [
                 </div>
                 <span class="status-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
                 <div class="order-total"><?= formatRupiah($o['total']) ?></div>
+                <?php if ($o['status'] === 'menunggu_pembayaran' && !empty($o['duitku_payment_url'])): ?>
+                    <a href="<?= htmlspecialchars($o['duitku_payment_url'], ENT_QUOTES, 'UTF-8') ?>" class="btn btn-success btn-sm" rel="noopener">Bayar Sekarang</a>
+                <?php endif; ?>
                 <a href="customer_order_detail.php?id=<?= (int)$o['id_order'] ?>" class="btn btn-outline-secondary btn-sm">Lihat Detail</a>
             </div>
         <?php endforeach; ?>

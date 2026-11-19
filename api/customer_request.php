@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/helper.php';
+require_once __DIR__ . '/../config/duitku_orders.php';
 
 if (empty($_SESSION['customer_id'])) jsonResponse(false, 'Silakan login sebagai pelanggan.', null, 401);
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonResponse(false, 'Metode tidak diizinkan.', null, 405);
@@ -9,8 +10,8 @@ $db = getDB();
 if (!$db) jsonResponse(false, 'Database tidak tersedia.', null, 500);
 $input = $_POST;
 if (empty($input)) $input = json_decode(file_get_contents('php://input'), true) ?: [];
-$allowedMethods = ['Transfer Bank', 'QRIS', 'E-Wallet'];
-$methodMap = ['transfer' => 'Transfer Bank', 'qris' => 'QRIS', 'ewallet' => 'E-Wallet'];
+$allowedMethods = ['Transfer Bank', 'QRIS', 'E-Wallet', 'Duitku'];
+$methodMap = ['transfer' => 'Transfer Bank', 'qris' => 'QRIS', 'ewallet' => 'E-Wallet', 'duitku' => 'Duitku'];
 $proofPath = null;
 
 function saveCustomerPaymentProof($file) {
@@ -43,6 +44,7 @@ try {
     }
 
     if (($input['action'] ?? '') === 'topup') {
+        if ($method === 'Duitku') throw new Exception('Top up saldo melalui Duitku belum tersedia.');
         $amount = (float)($input['amount'] ?? 0);
         if ($amount < 10000 || $amount > 10000000) {
             throw new Exception('Top up minimal Rp 10.000 dan maksimal Rp 10.000.000.');
@@ -57,14 +59,22 @@ try {
     if (($input['action'] ?? '') === 'order' && !empty($input['id_order'])) {
         $idOrder = (int)$input['id_order'];
         $proofPath = saveCustomerPaymentProof($_FILES['bukti_transfer'] ?? null);
-        $stmt = $db->prepare("UPDATE tbl_pelanggan_order SET bukti_transfer = ?, status = 'menunggu_verifikasi' WHERE id_order = ? AND id_pelanggan = ?");
+        $stmt = $db->prepare("UPDATE tbl_pelanggan_order SET bukti_transfer = ?, status = 'menunggu_verifikasi' WHERE id_order = ? AND id_pelanggan = ? AND metode_bayar NOT LIKE 'Duitku%' AND status IN ('menunggu_verifikasi','ditolak')");
         $stmt->execute([$proofPath, $idOrder, $_SESSION['customer_id']]);
+        if ($stmt->rowCount() !== 1) throw new Exception('Pesanan tidak ditemukan atau tidak dapat menerima bukti pembayaran manual.');
         jsonResponse(true, 'Bukti pembayaran berhasil diunggah. Pesanan akan diproses setelah kasir verifikasi.', ['id_order'=>$idOrder]);
     }
 
     $items = $input['items'] ?? [];
     if (is_string($items)) $items = json_decode($items, true) ?: [];
     if (!is_array($items) || !$items) throw new Exception('Pilih barang terlebih dahulu.');
+
+    if ($method === 'Duitku') {
+        if (($input['action'] ?? '') !== 'order') throw new Exception('Jenis pesanan Duitku tidak valid.');
+        $payment = createDuitkuCustomerOrder($db, $_SESSION['customer_id'], $items, (string)($input['payment_method'] ?? ''));
+        jsonResponse(true, 'Invoice berhasil dibuat. Anda akan diarahkan ke halaman pembayaran Duitku.', $payment);
+    }
+
     $db->beginTransaction();
     $order = [];
     $total = 0;

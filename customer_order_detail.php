@@ -4,6 +4,7 @@
  */
 $pageTitle = 'Detail Pesanan';
 require_once __DIR__ . '/config/helper.php';
+header('Link: <assets/img/favicon.svg>; rel="icon"; type="image/svg+xml"');
 requireCustomer();
 $db = getDB();
 $order = null; $detail = []; $canUpload = false; $msg = '';
@@ -31,12 +32,13 @@ if ($db && $idOrder > 0) {
         $order = $stmt->fetch();
         if ($order) {
             $detail = json_decode($order['detail_json'], true) ?: [];
-            $canUpload = in_array($order['status'], ['menunggu_verifikasi', 'ditolak'], true) && !empty($order['metode_bayar']) && $order['metode_bayar'] !== 'COD';
+            $canUpload = in_array($order['status'], ['menunggu_verifikasi', 'ditolak'], true) && !empty($order['metode_bayar']) && $order['metode_bayar'] !== 'COD' && strpos($order['metode_bayar'], 'Duitku') !== 0;
         }
     } catch (Exception $e) {}
 }
 if (!$order) { header('Location: customer_orders.php'); exit; }
 $statusBadge = [
+    'menunggu_pembayaran' => ['status-pending', 'Menunggu Pembayaran'],
     'menunggu_verifikasi' => ['status-pending', 'Menunggu Verifikasi'],
     'diproses'            => ['status-proses', 'Diproses'],
     'selesai'             => ['status-selesai', 'Selesai'],
@@ -75,6 +77,10 @@ $badge = $statusBadge[$order['status']] ?? ['status-pending', 'Menunggu'];
                 </div>
                 <div class="d-flex justify-between mb-1"><span class="text-muted small">Metode Pembayaran</span><span class="fw-bold"><?= htmlspecialchars($order['metode_bayar']) ?></span></div>
                 <div class="d-flex justify-between mb-1"><span class="text-muted small">Total</span><span class="fw-bold fs-5 text-dark"><?= formatRupiah($order['total']) ?></span></div>
+                <?php if ($order['status'] === 'menunggu_pembayaran' && !empty($order['duitku_payment_url'])): ?>
+                    <a href="<?= htmlspecialchars($order['duitku_payment_url'], ENT_QUOTES, 'UTF-8') ?>" class="btn btn-success w-100 mt-3" rel="noopener"><i class="bi bi-credit-card me-1"></i>Lanjutkan Pembayaran</a>
+                    <div class="proof-hint mt-2">Status akan diperbarui otomatis setelah Duitku mengonfirmasi pembayaran.</div>
+                <?php endif; ?>
                 <?php if (!empty($order['bukti_transfer'])): ?>
                     <div class="mt-2"><a href="api/payment_proof.php?type=order&id=<?= (int)$order['id_order'] ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-image me-1"></i>Lihat Bukti Pembayaran</a></div>
                 <?php endif; ?>

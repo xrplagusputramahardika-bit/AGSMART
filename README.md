@@ -126,3 +126,13 @@ Tabel `tbl_transaksi` telah ditambahkan kolom `poin_didapat` untuk mencatat poin
 
 1. **Pastikan Apache & MySQL di XAMPP sudah Aktif** (`Start` Apache & MySQL di XAMPP Control Panel).
 2. Buka browser dan jalankan migrasi database (1-Klik):
+
+## Pembayaran Online Duitku
+
+Konfigurasi lokal disimpan di `.env` (diabaikan Git dan diblokir dari akses HTTP). Salin `.env.example` sebagai `.env` jika file konfigurasi belum tersedia, lalu isi Merchant Code dan API Key yang berasal dari proyek Duitku yang sama.
+
+- Gunakan `DUITKU_ENV=sandbox` untuk pengujian. Ganti menjadi `production` hanya setelah Merchant Code dan API Key produksi terverifikasi.
+- `DUITKU_PUBLIC_BASE_URL` harus memakai HTTPS dan dapat diakses dari internet. Untuk XAMPP dengan ngrok yang meneruskan port 80, URL aplikasi biasanya berakhiran `/agsmart`; pastikan URL callback `.../agsmart/api/duitku_callback.php` dapat dibuka dari internet.
+- Jika alamat ngrok berubah, perbarui `DUITKU_PUBLIC_BASE_URL` di `.env` dan mulai ulang checkout.
+- Metode pembayaran yang ditampilkan mengikuti kanal aktif di akun Duitku. Pembayaran diverifikasi dengan callback bertanda tangan dan pengecekan status ke Duitku; stok yang dipesan dilepas setelah status kedaluwarsa atau pembatalan dikonfirmasi.
+- Jangan memasukkan `.env` ke Git atau membagikan API Key. API Key yang pernah dibagikan di percakapan sebaiknya dirotasi sebelum memakai mode produksi.

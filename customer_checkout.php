@@ -22,6 +22,7 @@ if ($db) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $pageTitle ?> - AGSMART POS</title>
+    <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -73,6 +74,15 @@ if ($db) {
                                 </div>
                                 <span class="pm-arrow">›</span>
                             </div>
+                            <div class="payment-option" data-method="duitku">
+                                <input type="radio" name="payment" value="duitku" id="pmDuitku">
+                                <div class="pm-icon"><i class="bi bi-shield-check"></i></div>
+                                <div class="pm-info">
+                                    <p class="pm-title mb-0">Pembayaran Otomatis Duitku</p>
+                                    <p class="pm-desc mb-0">Bayar melalui kanal resmi Duitku; status pesanan diperbarui otomatis.</p>
+                                </div>
+                                <span class="pm-arrow">›</span>
+                            </div>
                             <div class="payment-option" data-method="ewallet">
                                 <input type="radio" name="payment" value="ewallet" id="pmEwallet">
                                 <div class="pm-icon"><i class="bi bi-wallet"></i></div>
@@ -93,6 +103,13 @@ if ($db) {
                                 <input type="file" id="buktiTransfer" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm">
                                 <div class="proof-hint">Format JPG, PNG, WEBP atau PDF (maks. 5 MB)</div>
                             </div>
+                            <div id="duitkuPaymentWrap" hidden>
+                                <label for="duitkuPaymentMethod" class="form-label fw-semibold">Pilih kanal pembayaran Duitku</label>
+                                <select id="duitkuPaymentMethod" class="form-select">
+                                    <option value="">Memuat metode pembayaran...</option>
+                                </select>
+                                <div id="duitkuMethodStatus" class="proof-hint mt-2" role="status"></div>
+                            </div>
                         </div>
                         <div class="mt-4">
                             <button type="button" class="btn btn-primary-wide w-100" id="btnCheckout">Pesan Sekarang &amp; Bayar</button>
@@ -101,6 +118,7 @@ if ($db) {
                             <form id="checkoutForm" method="POST" action="api/customer_request.php" enctype="multipart/form-data" hidden>
                                 <input type="hidden" name="action" value="order">
                                 <input type="hidden" name="method" id="checkoutMethodInput">
+                                <input type="hidden" name="payment_method" id="checkoutPaymentMethodInput">
                                 <input type="hidden" name="items" id="checkoutItemsInput">
                                 <input type="file" name="bukti_transfer" id="checkoutBuktiInput">
                             </form>
@@ -132,44 +150,10 @@ if ($db) {
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             renderCheckoutSummary();
-            document.querySelectorAll('.payment-option').forEach(opt => {
-                opt.addEventListener('click', () => {
-                    const radio = opt.querySelector('input[type=radio]');
-                    if (radio) radio.checked = true;
-                    selectPayment(opt.dataset.method);
-                    document.getElementById('checkoutMethod').value = opt.dataset.method;
-                    document.getElementById('checkoutMethodInput').value = opt.dataset.method;
-                });
-            });
-            const form = document.getElementById('checkoutForm');
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const btn = document.getElementById('btnCheckout');
-                if (!selectedPayment) { showToast('Pilih metode pembayaran', 'warning'); return; }
-                const cart = JSON.parse(localStorage.getItem('agsmart_cart') || '[]');
-                if (cart.length === 0) { showToast('Keranjang kosong', 'warning'); return; }
-                btn.disabled = true; btn.textContent = 'Memproses...';
-                const formData = new FormData();
-                formData.append('action', 'order');
-                formData.append('method', selectedPayment);
-                formData.append('items', JSON.stringify(cart));
-                const file = document.getElementById('buktiTransfer').files[0];
-                if (file) formData.append('bukti_transfer', file);
-                try {
-                    const res = await fetch('api/customer_request.php', { method: 'POST', body: formData });
-                    const json = await res.json();
-                    if (json.status) {
-                        localStorage.removeItem('agsmart_cart');
-                        showToast(json.message, 'success');
-                        setTimeout(() => { location.href = 'customer_orders.php'; }, 800);
-                    } else {
-                        showToast(json.message, 'danger');
-                        btn.disabled = false; btn.textContent = 'Pesan Sekarang & Bayar';
-                    }
-                } catch (err) {
-                    showToast('Terjadi kesalahan jaringan', 'danger');
-                    btn.disabled = false; btn.textContent = 'Pesan Sekarang & Bayar';
-                }
+            document.getElementById('btnCheckout').addEventListener('click', () => {
+                const form = document.getElementById('checkoutForm');
+                if (form.requestSubmit) form.requestSubmit();
+                else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
             });
         });
         function renderCheckoutSummary() {

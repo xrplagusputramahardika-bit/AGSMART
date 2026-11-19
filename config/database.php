@@ -244,7 +244,13 @@ function autoMigrateDatabase($pdo) {
                 total DECIMAL(12,2) NOT NULL,
                 metode_bayar VARCHAR(30) NOT NULL DEFAULT 'Transfer Bank',
                 bukti_transfer VARCHAR(80) DEFAULT NULL,
-                status ENUM('menunggu_transfer','menunggu_verifikasi','diproses','ditolak') NOT NULL DEFAULT 'menunggu_transfer',
+                status ENUM('menunggu_transfer','menunggu_verifikasi','menunggu_pembayaran','diproses','ditolak','selesai') NOT NULL DEFAULT 'menunggu_transfer',
+                duitku_order_id VARCHAR(50) DEFAULT NULL,
+                duitku_reference VARCHAR(100) DEFAULT NULL,
+                duitku_payment_url VARCHAR(500) DEFAULT NULL,
+                duitku_payment_code VARCHAR(10) DEFAULT NULL,
+                duitku_expires_at DATETIME DEFAULT NULL,
+                stok_dipesan TINYINT(1) NOT NULL DEFAULT 0,
                 dibuat_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX (id_pelanggan), INDEX (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -256,7 +262,25 @@ function autoMigrateDatabase($pdo) {
             if (!in_array('bukti_transfer', $orderCols, true)) {
                 $pdo->exec("ALTER TABLE tbl_pelanggan_order ADD COLUMN bukti_transfer VARCHAR(80) DEFAULT NULL");
             }
-        } catch (Throwable $e) {}
+            foreach ([
+                'duitku_order_id' => 'VARCHAR(50) DEFAULT NULL',
+                'duitku_reference' => 'VARCHAR(100) DEFAULT NULL',
+                'duitku_payment_url' => 'VARCHAR(500) DEFAULT NULL',
+                'duitku_payment_code' => 'VARCHAR(10) DEFAULT NULL',
+                'duitku_expires_at' => 'DATETIME DEFAULT NULL',
+                'stok_dipesan' => 'TINYINT(1) NOT NULL DEFAULT 0'
+            ] as $col => $definition) {
+                if (!in_array($col, $orderCols, true)) {
+                    $pdo->exec("ALTER TABLE tbl_pelanggan_order ADD COLUMN `$col` $definition");
+                }
+            }
+            $statusType = $pdo->query("SHOW COLUMNS FROM tbl_pelanggan_order LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+            if ($statusType && strpos($statusType['Type'], "'menunggu_pembayaran'") === false) {
+                $pdo->exec("ALTER TABLE tbl_pelanggan_order MODIFY status ENUM('menunggu_transfer','menunggu_verifikasi','menunggu_pembayaran','diproses','ditolak','selesai') NOT NULL DEFAULT 'menunggu_transfer'");
+            }
+        } catch (Throwable $e) {
+            error_log('AGSmart online order migration failed: ' . $e->getMessage());
+        }
 
         // 6. Ensure all columns in tbl_transaksi exist
         try {
