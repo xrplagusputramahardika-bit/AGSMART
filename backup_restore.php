@@ -5,6 +5,7 @@
  */
 $pageTitle = 'Backup & Restore Database';
 require_once __DIR__ . '/config/helper.php';
+requireAdmin();
 
 $db = getDB();
 $backupDir = __DIR__ . '/backups';

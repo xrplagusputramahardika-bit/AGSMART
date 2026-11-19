@@ -1470,3 +1470,167 @@ body {
     }
 }
 
+/* ========================================================
+   INDOMARET STYLE BARCODE SCANNER STYLES
+======================================================== */
+.scanner-status-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.scanner-active-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: pulseDot 1.6s infinite;
+}
+
+@keyframes pulseDot {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    70% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+.multiplier-pill {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.multiplier-pill.active,
+.multiplier-pill:hover {
+    background: #ff7849;
+    color: #ffffff;
+    border-color: #ff7849;
+    box-shadow: 0 2px 6px rgba(255, 120, 73, 0.25);
+}
+
+.last-scanned-banner {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #86efac;
+    border-left: 5px solid #16a34a;
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.12);
+    animation: bannerSlideDown 0.25s ease-out;
+}
+
+@keyframes bannerSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.cart-item-scanned {
+    animation: cartScanPulse 1.2s ease-out;
+}
+
+@keyframes cartScanPulse {
+    0% {
+        background-color: #bbf7d0 !important;
+        transform: scale(1.02);
+    }
+    50% {
+        background-color: #dcfce7 !important;
+    }
+    100% {
+        background-color: transparent;
+        transform: scale(1);
+    }
+}
+
+/* Camera Barcode Scanner Viewfinder */
+.scanner-viewfinder {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 260px;
+    height: 180px;
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.scanner-laser {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #ef4444;
+    box-shadow: 0 0 12px 2px #ef4444;
+    animation: laserScan 2s infinite ease-in-out;
+}
+
+@keyframes laserScan {
+    0% {
+        top: 5%;
+        opacity: 0.9;
+    }
+    50% {
+        top: 92%;
+        opacity: 1;
+    }
+    100% {
+        top: 5%;
+        opacity: 0.9;
+    }
+}
+
+.quick-barcode-pill {
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0.25rem 0.55rem;
+    color: #1e293b;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.quick-barcode-pill:hover {
+    background: #ffedd5;
+    border-color: #ff7849;
+    color: #c2410c;
+    transform: translateY(-1px);
+}
+
+

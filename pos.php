@@ -36,30 +36,52 @@ if ($db) {
         <!-- KOLOM KIRI: KATALOG PRODUK & PENCARIAN -->
         <div class="col-lg-7 col-xl-8 d-flex flex-column">
             
-            <!-- Bar Pencarian & Scanner & Tap Member -->
+            <!-- LAST SCANNED BANNER (Indomaret Cashier Display) -->
+            <div id="lastScannedBanner" class="last-scanned-banner mb-3 d-none">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-success px-2 py-1"><i class="bi bi-upc me-1"></i>BERHASIL SCAN</span>
+                        <span class="fw-bold text-dark font-mono" id="scanBannerName">Indomie Goreng</span>
+                        <span class="text-secondary small">(&times;<span id="scanBannerQty" class="fw-bold text-dark">1</span> @ <span id="scanBannerPrice">Rp 0</span>)</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="fw-bold text-primary-orange font-mono fs-6" id="scanBannerSubtotal">Rp 0</div>
+                        <button type="button" class="btn-close btn-sm" onclick="document.getElementById('lastScannedBanner').classList.add('d-none')"></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bar Pencarian & Scanner Indomaret & Tap Member -->
             <div class="retail-card mb-3 p-3">
                 <div class="row g-2 align-items-center">
-                    <div class="col-md-5">
+                    <!-- Pencarian Nama Produk -->
+                    <div class="col-md-4">
                         <div class="input-group">
                             <span class="input-group-text bg-light border-0 text-muted">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" class="form-control bg-light border-0 text-dark" id="searchProduct" placeholder="Cari produk / barcode (F2)..." autocomplete="off">
+                            <input type="text" class="form-control bg-light border-0 text-dark" id="searchProduct" placeholder="Cari nama barang (F2)..." autocomplete="off">
                             <span class="input-group-text bg-light border-0 text-muted small d-none d-sm-inline">
                                 <kbd class="bg-white text-muted border">F2</kbd>
                             </span>
                         </div>
                     </div>
-                    <div class="col-md-4">
+
+                    <!-- Input Barcode Scanner (Indomaret Hardware / Auto-Listen) -->
+                    <div class="col-md-5">
                         <div class="input-group">
-                            <span class="input-group-text bg-light border-0 text-primary-orange">
-                                <i class="bi bi-upc-scan"></i>
+                            <span class="input-group-text bg-light border-0 text-primary-orange" title="Arahkan scanner barcode fisik ke sini">
+                                <i class="bi bi-upc-scan fs-5"></i>
                             </span>
-                            <input type="text" class="form-control bg-light border-0 text-dark" id="barcodeScanInput" placeholder="Scan Barcode Barang..." onchange="handleScannedBarcode(this.value); this.value='';" autocomplete="off">
+                            <input type="text" class="form-control bg-light border-0 text-dark font-mono fw-semibold" id="barcodeScanInput" placeholder="Scan Barcode (Auto-Listen)..." onchange="handleScannedBarcode(this.value); this.value='';" autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary border-0 bg-light text-primary-orange" onclick="openCameraScanner()" title="Buka Scanner Kamera HP/Laptop">
+                                <i class="bi bi-camera-fill me-1"></i> Kamera
+                            </button>
                         </div>
                     </div>
+
+                    <!-- Button Tap Kartu Member -->
                     <div class="col-md-3">
-                        <!-- BUTTON TAP KARTU MEMBER -->
                         <button type="button" class="topbar-btn-orange w-100 justify-content-center py-2 shadow-sm" onclick="openTapMemberModal()">
                             <i class="bi bi-nfc fs-5"></i>
                             <span>Tap Member (F3)</span>
@@ -67,8 +89,66 @@ if ($db) {
                     </div>
                 </div>
 
+                <!-- Scanner Toolbar (Status, Multiplier & Quick Simulator) -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 pb-1 border-top mt-2">
+                    <!-- Scanner Status & Multiplier -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="scanner-status-pill" title="Scanner barcode hardware USB/Bluetooth aktif di seluruh layar">
+                            <span class="scanner-active-dot"></span>
+                            <span>Scanner Aktif</span>
+                        </span>
+
+                        <span class="text-muted small ms-1">Qty Scan:</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="multiplier-pill active" onclick="setScanMultiplier(1, this)">1x</button>
+                            <button type="button" class="multiplier-pill" onclick="setScanMultiplier(2, this)">2x</button>
+                            <button type="button" class="multiplier-pill" onclick="setScanMultiplier(5, this)">5x</button>
+                            <button type="button" class="multiplier-pill" onclick="setScanMultiplier(10, this)">10x</button>
+                        </div>
+                        <span class="text-muted small d-none d-lg-inline fst-italic ms-1" style="font-size: 0.73rem;">
+                            (Tips: ketik <kbd class="bg-light border text-dark">5*</kbd> lalu scan)
+                        </span>
+                    </div>
+
+                    <!-- Quick Barcode Shelf Toggle -->
+                    <div>
+                        <button type="button" class="btn btn-sm btn-link text-decoration-none text-primary-orange p-0 fw-semibold small" onclick="toggleQuickBarcodes()">
+                            <i class="bi bi-lightning-charge-fill"></i> Contoh Barcode Cepat <i class="bi bi-chevron-down" id="quickBarcodeChevron"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QUICK BARCODE SHELF (Simulasi Barcode Indomaret 1-Klik) -->
+                <div id="quickBarcodeShelf" class="pt-2 d-none">
+                    <div class="p-2 bg-light rounded-3 border">
+                        <div class="small fw-bold text-secondary mb-1">
+                            <i class="bi bi-upc me-1"></i> Klik untuk tes scan barcode langsung (Suara Beep Kasir Indomaret):
+                        </div>
+                        <div class="d-flex flex-wrap gap-1">
+                            <button type="button" class="quick-barcode-pill" onclick="handleScannedBarcode('BRG-006')">
+                                <i class="bi bi-upc"></i> Indomie Goreng (BRG-006)
+                            </button>
+                            <button type="button" class="quick-barcode-pill" onclick="handleScannedBarcode('BRG-011')">
+                                <i class="bi bi-upc"></i> Aqua 600ml (BRG-011)
+                            </button>
+                            <button type="button" class="quick-barcode-pill" onclick="handleScannedBarcode('BRG-008')">
+                                <i class="bi bi-upc"></i> Chitato Sapi (BRG-008)
+                            </button>
+                            <button type="button" class="quick-barcode-pill" onclick="handleScannedBarcode('BRG-002')">
+                                <i class="bi bi-upc"></i> Minyak Sania 2L (BRG-002)
+                            </button>
+                            <button type="button" class="quick-barcode-pill" onclick="handleScannedBarcode('BRG-001')">
+                                <i class="bi bi-upc"></i> Beras Ramos 5kg (BRG-001)
+                            </button>
+                            <button type="button" class="quick-barcode-pill" onclick="handleScannedBarcode('BRG-019')">
+                                <i class="bi bi-upc"></i> Sabun Lifebuoy (BRG-019)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Kategori Pills -->
-                <div class="d-flex align-items-center gap-2 overflow-x-auto pt-3 pb-1">
+                <div class="d-flex align-items-center gap-2 overflow-x-auto pt-2 pb-1">
                     <button class="retail-category-pill active" data-category="all">
                         <i class="bi bi-grid-fill"></i> Semua (<?= count($products) ?>)
                     </button>
@@ -485,6 +565,38 @@ if ($db) {
                     <button type="submit" class="btn btn-sm topbar-btn-orange rounded-pill px-3">Simpan</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Scanner Barcode Kamera (Indomaret Live Mode) -->
+<div class="modal fade" id="cameraScannerModal" tabindex="-1" aria-labelledby="cameraScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-dark text-white border-0 py-2 px-3">
+                <h6 class="modal-title fw-bold d-flex align-items-center gap-2" id="cameraScannerModalLabel">
+                    <i class="bi bi-camera-video text-warning"></i> Scanner Barcode Kamera (Indomaret)
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" onclick="stopCameraScanner()"></button>
+            </div>
+            <div class="modal-body p-0 bg-black text-center position-relative" style="min-height: 280px; max-height: 380px; overflow: hidden;">
+                <video id="cameraVideo" playsinline autoplay muted style="width: 100%; height: 320px; object-fit: cover;"></video>
+                
+                <!-- Viewfinder & Red Laser -->
+                <div class="scanner-viewfinder">
+                    <div class="scanner-laser"></div>
+                </div>
+
+                <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3 text-white small px-3 py-1 bg-dark bg-opacity-75 rounded-pill shadow" id="cameraStatusText">
+                    <i class="bi bi-upc-scan me-1"></i> Arahkan barcode ke dalam kotak
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-2 d-flex justify-content-between">
+                <span class="small text-muted">Mendukung EAN-13, Code 128, QR Code</span>
+                <button type="button" class="btn btn-secondary rounded-pill btn-sm px-3" data-bs-dismiss="modal" onclick="stopCameraScanner()">
+                    Tutup
+                </button>
+            </div>
         </div>
     </div>
 </div>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="background" x1="30" y1="20" x2="370" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF8F3"/>
+      <stop offset="1" stop-color="#F1F4F8"/>
+    </linearGradient>
+    <linearGradient id="bag" x1="158" y1="91" x2="242" y2="211" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF956B"/>
+      <stop offset="1" stop-color="#E95B36"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" rx="24" fill="url(#background)"/>
+  <circle cx="200" cy="145" r="77" fill="#fff" fill-opacity=".72"/>
+  <circle cx="200" cy="145" r="61" fill="#FFF2EB"/>
+  <path d="M167 130h66l-6 55h-54l-6-55Z" fill="url(#bag)"/>
+  <path d="M181 133v-12a19 19 0 0 1 38 0v12" stroke="#E95B36" stroke-linecap="round" stroke-width="8"/>
+  <path d="M200 145c-7-8-19 2 0 16 19-14 7-24 0-16Z" fill="#fff"/>
+  <text x="200" y="229" fill="#788397" font-family="Arial,sans-serif" font-size="14" font-weight="700" text-anchor="middle" letter-spacing="1.2">AGSMART MART</text>
+</svg>

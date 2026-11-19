@@ -2,6 +2,8 @@
 /**
  * AGSmart POS Dashboard
  */
+require_once __DIR__ . '/config/helper.php';
+requireAdmin();
 $pageTitle = 'Dashboard';
 require_once __DIR__ . '/views/header.php';
 
@@ -24,58 +26,60 @@ for ($offset = 5; $offset >= 0; $offset--) {
 }
 
 if ($db) {
-    $today = $db->query("
-        SELECT COALESCE(SUM(total_belanja), 0) AS total,
-               COUNT(*) AS jumlah
-        FROM tbl_transaksi
-        WHERE tanggal = CURDATE()
-    ")->fetch();
-    $todaySales = (float)($today['total'] ?? 0);
-    $todayOrders = (int)($today['jumlah'] ?? 0);
+    try {
+        $today = $db->query("
+            SELECT COALESCE(SUM(total_belanja), 0) AS total,
+                   COUNT(*) AS jumlah
+            FROM tbl_transaksi
+            WHERE tanggal = CURDATE()
+        ")->fetch();
+        $todaySales = (float)($today['total'] ?? 0);
+        $todayOrders = (int)($today['jumlah'] ?? 0);
 
-    $customerCount = (int)$db->query("SELECT COUNT(*) FROM tbl_pelanggan")->fetchColumn();
+        $customerCount = (int)$db->query("SELECT COUNT(*) FROM tbl_pelanggan")->fetchColumn();
 
-    $stock = $db->query("
-        SELECT COUNT(*) AS total,
-               COALESCE(SUM(CASE WHEN stok <= stok_minimal THEN 1 ELSE 0 END), 0) AS rendah
-        FROM tbl_produk
-    ")->fetch();
-    $productCount = (int)($stock['total'] ?? 0);
-    $lowStockCount = (int)($stock['rendah'] ?? 0);
-
-    if ($lowStockCount > 0) {
-        $lowStockProduct = $db->query("
-            SELECT nama_produk
+        $stock = $db->query("
+            SELECT COUNT(*) AS total,
+                   COALESCE(SUM(CASE WHEN stok <= stok_minimal THEN 1 ELSE 0 END), 0) AS rendah
             FROM tbl_produk
-            WHERE stok <= stok_minimal
-            ORDER BY stok ASC
-            LIMIT 1
-        ")->fetchColumn();
-    }
+        ")->fetch();
+        $productCount = (int)($stock['total'] ?? 0);
+        $lowStockCount = (int)($stock['rendah'] ?? 0);
 
-    $monthStart = $currentMonth->modify('-5 months')->format('Y-m-01');
-    $nextMonth = $currentMonth->modify('+1 month')->format('Y-m-01');
-    $salesByMonth = $db->prepare("
-        SELECT DATE_FORMAT(tanggal, '%Y-%m') AS periode,
-               COALESCE(SUM(total_belanja), 0) AS total
-        FROM tbl_transaksi
-        WHERE tanggal >= ? AND tanggal < ?
-        GROUP BY DATE_FORMAT(tanggal, '%Y-%m')
-    ");
-    $salesByMonth->execute([$monthStart, $nextMonth]);
-    $salesByMonth = $salesByMonth->fetchAll(PDO::FETCH_KEY_PAIR);
-    foreach ($monthKeys as $index => $monthKey) {
-        $monthlySales[$index] = (float)($salesByMonth[$monthKey] ?? 0);
-    }
+        if ($lowStockCount > 0) {
+            $lowStockProduct = $db->query("
+                SELECT nama_produk
+                FROM tbl_produk
+                WHERE stok <= stok_minimal
+                ORDER BY stok ASC
+                LIMIT 1
+            ")->fetchColumn();
+        }
 
-    $recentTransactions = $db->query("
-        SELECT t.id_transaksi, t.no_faktur, t.tanggal, t.waktu,
-               t.total_belanja, t.metode_pembayaran, p.nama_pelanggan
-        FROM tbl_transaksi t
-        LEFT JOIN tbl_pelanggan p ON p.id_pelanggan = t.id_pelanggan
-        ORDER BY t.tanggal DESC, t.waktu DESC, t.id_transaksi DESC
-        LIMIT 6
-    ")->fetchAll();
+        $monthStart = $currentMonth->modify('-5 months')->format('Y-m-01');
+        $nextMonth = $currentMonth->modify('+1 month')->format('Y-m-01');
+        $salesByMonth = $db->prepare("
+            SELECT DATE_FORMAT(tanggal, '%Y-%m') AS periode,
+                   COALESCE(SUM(total_belanja), 0) AS total
+            FROM tbl_transaksi
+            WHERE tanggal >= ? AND tanggal < ?
+            GROUP BY DATE_FORMAT(tanggal, '%Y-%m')
+        ");
+        $salesByMonth->execute([$monthStart, $nextMonth]);
+        $salesByMonth = $salesByMonth->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach ($monthKeys as $index => $monthKey) {
+            $monthlySales[$index] = (float)($salesByMonth[$monthKey] ?? 0);
+        }
+
+        $recentTransactions = $db->query("
+            SELECT t.id_transaksi, t.no_faktur, t.tanggal, t.waktu,
+                   t.total_belanja, t.metode_pembayaran, p.nama_pelanggan
+            FROM tbl_transaksi t
+            LEFT JOIN tbl_pelanggan p ON p.id_pelanggan = t.id_pelanggan
+            ORDER BY t.tanggal DESC, t.waktu DESC, t.id_transaksi DESC
+            LIMIT 6
+        ")->fetchAll();
+    } catch (Throwable $e) {}
 }
 
 $dashboardChartData = [

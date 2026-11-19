@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS `tbl_pengaturan` (
   `footer_struk` text DEFAULT 'Simpan struk ini sebagai bukti pembayaran yang sah.',
   `pajak_persen` decimal(5,2) DEFAULT 0.00,
   `lebar_struk` varchar(10) DEFAULT '58mm',
+  `bank_transfer` varchar(60) DEFAULT 'BCA',
+  `rekening_transfer` varchar(40) DEFAULT '1234567890',
+  `pemilik_rekening` varchar(100) DEFAULT 'AGSMART STORE',
+  `qris_image_url` varchar(500) DEFAULT NULL,
+  `ewallet_info` varchar(500) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -49,14 +54,16 @@ CREATE TABLE IF NOT EXISTS `tbl_user` (
   `password` varchar(255) NOT NULL,
   `nama_lengkap` varchar(100) NOT NULL,
   `role` enum('admin','kasir') DEFAULT 'kasir',
+  `no_kartu` varchar(50) DEFAULT NULL UNIQUE,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_user`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `tbl_user` (`id_user`, `username`, `password`, `nama_lengkap`, `role`) VALUES
-(1, 'admin', '$2y$10$wE9o42Q6i4p1bA9yv23oQOaG5737Z6l9Qv3oO68w6wM86yM86yM86', 'Administrator', 'admin'),
-(2, 'kasir1', '$2y$10$wE9o42Q6i4p1bA9yv23oQOaG5737Z6l9Qv3oO68w6wM86yM86yM86', 'Siti Rahma (Kasir 1)', 'kasir')
-ON DUPLICATE KEY UPDATE `username` = VALUES(`username`);
+INSERT INTO `tbl_user` (`id_user`, `username`, `password`, `nama_lengkap`, `role`, `no_kartu`) VALUES
+(1, 'admin', '$2y$10$2vZe//ohOCdUwQPfP2bV.ODxiu7xaSKjm2i1RSLMYnGkzM3k/cv52', 'Administrator', 'admin', 'MBR-ADMIN01'),
+(2, 'kasir1', '$2y$10$si4xB3QHKS2/RrEx31Bm/eCkaoaQZAUDuAceqdMo0JS2wPmIx0DxG', 'Siti Rahma (Kasir 1)', 'admin', 'MBR-KASIR01'),
+(3, 'kasir2', '$2y$10$si4xB3QHKS2/RrEx31Bm/eCkaoaQZAUDuAceqdMo0JS2wPmIx0DxG', 'Dewi Lestari (Kasir 2)', 'kasir', 'MBR-KASIR02')
+ON DUPLICATE KEY UPDATE `username` = VALUES(`username`), `password` = VALUES(`password`), `no_kartu` = VALUES(`no_kartu`), `role` = VALUES(`role`);
 
 -- --------------------------------------------------------
 -- 3. Table structure for `tbl_pelanggan` (With Member Card / RFID Tap Support)
@@ -74,8 +81,7 @@ CREATE TABLE IF NOT EXISTS `tbl_pelanggan` (
   `saldo` decimal(12,2) DEFAULT 0.00,
   `status_kartu` enum('aktif','nonaktif','blokir') DEFAULT 'aktif',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_pelanggan`),
-  KEY `no_kartu` (`no_kartu`)
+  PRIMARY KEY (`id_pelanggan`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `tbl_pelanggan` (`id_pelanggan`, `nama_pelanggan`, `kota`, `telepon`, `alamat`, `no_kartu`, `tipe_member`, `diskon_member`, `poin`, `saldo`, `status_kartu`) VALUES
@@ -320,6 +326,39 @@ INSERT INTO `tbl_detail_transaksi` (`id_transaksi`, `id_produk`, `nama_produk`, 
 (20, 2, 'Minyak Goreng Sania 2 Liter', 38000.00, 2, 76000.00),
 (20, 24, 'Super Pell Pembersih Lantai 770ml', 15000.00, 2, 30000.00),
 (20, 26, 'Bolpoint Standard AE7 Hitam Box 12', 14000.00, 1, 14000.00);
+
+-- --------------------------------------------------------
+-- Table structure for `tbl_topup_request`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tbl_topup_request` (
+  `id_topup` int(11) NOT NULL AUTO_INCREMENT,
+  `id_pelanggan` int(11) NOT NULL,
+  `nominal` decimal(12,2) NOT NULL,
+  `metode_bayar` varchar(30) NOT NULL DEFAULT 'Transfer Bank',
+  `bukti_transfer` varchar(80) DEFAULT NULL,
+  `status` enum('menunggu','disetujui','ditolak') NOT NULL DEFAULT 'menunggu',
+  `dibuat_pada` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_topup`),
+  KEY `id_pelanggan` (`id_pelanggan`),
+  KEY `status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Table structure for `tbl_pelanggan_order`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tbl_pelanggan_order` (
+  `id_order` int(11) NOT NULL AUTO_INCREMENT,
+  `id_pelanggan` int(11) NOT NULL,
+  `detail_json` longtext NOT NULL,
+  `total` decimal(12,2) NOT NULL,
+  `metode_bayar` varchar(30) NOT NULL DEFAULT 'Transfer Bank',
+  `bukti_transfer` varchar(80) DEFAULT NULL,
+  `status` enum('menunggu_transfer','menunggu_verifikasi','diproses','ditolak') NOT NULL DEFAULT 'menunggu_transfer',
+  `dibuat_pada` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_order`),
+  KEY `id_pelanggan` (`id_pelanggan`),
+  KEY `status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 -- 8. Structure for View: `v_laporan_transaksi` (Original View preserved)

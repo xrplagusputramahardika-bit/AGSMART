@@ -4,6 +4,7 @@
  * AGSmart POS System
  */
 require_once __DIR__ . '/config/helper.php';
+requireAdmin();
 
 $message = null;
 $messageType = 'info';

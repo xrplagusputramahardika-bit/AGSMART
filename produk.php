@@ -5,6 +5,7 @@
  */
 $pageTitle = 'Manajemen Produk & Stok';
 require_once __DIR__ . '/config/helper.php';
+requireAdmin();
 
 $db = getDB();
 

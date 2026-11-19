@@ -4,11 +4,23 @@
  * AGSmart POS System
  */
 require_once __DIR__ . '/../config/helper.php';
+requireCashier();
 
 $pengaturan = getPengaturan();
 $activePage = basename($_SERVER['PHP_SELF'], '.php');
 $flash = getFlash();
+$isAdmin = currentStaffRole() === 'admin';
 $dbCheck = checkDatabaseStatus();
+$pendingOrders = 0;
+$pendingTopups = 0;
+try {
+    $pendingDb = getDB();
+    if ($pendingDb) {
+        $pendingOrders = (int)$pendingDb->query("SELECT COUNT(*) FROM tbl_pelanggan_order WHERE status='menunggu_verifikasi'")->fetchColumn();
+        $pendingTopups = (int)$pendingDb->query("SELECT COUNT(*) FROM tbl_topup_request WHERE status='menunggu'")->fetchColumn();
+    }
+} catch (Throwable $e) {}
+$pendingTotal = $pendingOrders + $pendingTopups;
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -53,16 +65,19 @@ $dbCheck = checkDatabaseStatus();
         <div class="sidebar-menu">
             <!-- Main Section -->
             <div class="sidebar-section-title">Main</div>
-            <a href="index.php" class="sidebar-link <?= ($activePage === 'index') ? 'active' : '' ?>">
-                <i class="bi bi-grid-fill"></i>
-                <span>Dashboard</span>
-            </a>
+            <?php if ($isAdmin): ?>
+                <a href="index.php" class="sidebar-link <?= ($activePage === 'index') ? 'active' : '' ?>">
+                    <i class="bi bi-grid-fill"></i>
+                    <span>Dashboard</span>
+                </a>
+            <?php endif; ?>
             <a href="pos.php" class="sidebar-link <?= ($activePage === 'pos') ? 'active' : '' ?>">
                 <i class="bi bi-calculator-fill"></i>
                 <span>Kasir (POS)</span>
             </a>
 
             <!-- Inventory Section -->
+            <?php if ($isAdmin): ?>
             <div class="sidebar-section-title mt-2">Inventory</div>
             <a href="produk.php" class="sidebar-link <?= ($activePage === 'produk' && !isset($_GET['filter_stok'])) ? 'active' : '' ?>">
                 <i class="bi bi-box-seam"></i>
@@ -83,6 +98,17 @@ $dbCheck = checkDatabaseStatus();
                 <i class="bi bi-person-vcard"></i>
                 <span>Data Member</span>
             </a>
+            <?php endif; ?>
+            <?php if ($isAdmin): ?>
+                <a href="online_orders.php" class="sidebar-link <?= ($activePage === 'online_orders') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i><span>Pesanan &amp; Top Up</span><span id="pendingBadge" class="badge rounded-pill text-bg-danger ms-auto" <?= $pendingTotal ? '' : 'hidden' ?>><?= $pendingTotal ?></span>
+                </a>
+                <a href="customer_catalog.php" class="sidebar-link <?= ($activePage === 'customer_catalog') ? 'active' : '' ?>">
+                    <i class="bi bi-store"></i>
+                    <span>Toko Online (Pelanggan)</span>
+                </a>
+            <?php endif; ?>
+            <a href="logout.php" class="sidebar-link text-danger"><i class="bi bi-box-arrow-right"></i><span>Log out</span></a>
             <a href="javascript:void(0)" onclick="openTapMemberModal()" class="sidebar-link">
                 <i class="bi bi-nfc text-warning"></i>
                 <span>Tap Kartu Member</span>
@@ -94,25 +120,25 @@ $dbCheck = checkDatabaseStatus();
                 <i class="bi bi-receipt"></i>
                 <span>Riwayat Transaksi</span>
             </a>
-            <a href="laporan.php" class="sidebar-link <?= ($activePage === 'laporan') ? 'active' : '' ?>">
-                <i class="bi bi-graph-up-arrow"></i>
-                <span>Laporan Penjualan</span>
-            </a>
+            <?php if ($isAdmin): ?>
+                <a href="laporan.php" class="sidebar-link <?= ($activePage === 'laporan') ? 'active' : '' ?>">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <span>Laporan Penjualan</span>
+                </a>
+            <?php endif; ?>
 
             <!-- System -->
+            <?php if ($isAdmin): ?>
             <div class="sidebar-section-title mt-2">System</div>
             <a href="backup_restore.php" class="sidebar-link <?= ($activePage === 'backup_restore') ? 'active' : '' ?>">
                 <i class="bi bi-database-down"></i>
                 <span>Backup &amp; Restore</span>
             </a>
-            <a href="pengaturan.php" class="sidebar-link <?= ($activePage === 'pengaturan') ? 'active' : '' ?>">
-                <i class="bi bi-gear"></i>
-                <span>Pengaturan Toko</span>
-            </a>
             <a href="setup.php" class="sidebar-link <?= ($activePage === 'setup') ? 'active' : '' ?>">
                 <i class="bi bi-database-gear"></i>
                 <span>Status &amp; Migrasi DB</span>
             </a>
+            <?php endif; ?>
         </div>
     </aside>
 
@@ -138,10 +164,12 @@ $dbCheck = checkDatabaseStatus();
             <!-- Right Controls: Actions, Buttons, Badges -->
             <div class="d-flex align-items-center gap-2">
                 <!-- Add New Button (Orange) -->
+                <?php if ($isAdmin): ?>
                 <a href="produk.php" class="topbar-btn-orange">
                     <i class="bi bi-plus-circle"></i>
                     <span>Add New</span>
                 </a>
+                <?php endif; ?>
 
                 <!-- POS Button (Dark Navy) -->
                 <a href="pos.php" class="topbar-btn-pos shadow-sm">
@@ -170,11 +198,6 @@ $dbCheck = checkDatabaseStatus();
                     <i class="bi bi-envelope"></i>
                 </button>
 
-                <!-- Settings Cog -->
-                <a href="pengaturan.php" class="icon-circle-btn" title="Pengaturan">
-                    <i class="bi bi-gear"></i>
-                </a>
-
                 <!-- Profile User Avatar -->
                 <div class="dropdown ms-1">
                     <button class="btn p-0 border-0 d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
@@ -184,14 +207,19 @@ $dbCheck = checkDatabaseStatus();
                         </div>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
-                        <li><h6 class="dropdown-header">Administrator Toko</h6></li>
+                        <li><h6 class="dropdown-header"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Kasir') ?></h6></li>
                         <li><a class="dropdown-item" href="pos.php"><i class="bi bi-calculator me-2"></i> Buka Kasir POS</a></li>
-                        <li><a class="dropdown-item" href="pengaturan.php"><i class="bi bi-gear me-2"></i> Profil Toko</a></li>
                         <li><a class="dropdown-item" href="backup_restore.php"><i class="bi bi-database me-2"></i> Backup Data</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i> Keluar</a></li>
                     </ul>
                 </div>
             </div>
         </header>
+
+        <div id="pendingNotice" class="container-fluid px-4 mt-3" <?= $pendingTotal ? '' : 'hidden' ?>>
+            <a href="online_orders.php" class="alert alert-warning d-flex align-items-center gap-2 mb-0 text-decoration-none"><i class="bi bi-bell-fill"></i><span>Ada <b id="pendingNoticeCount"><?= $pendingTotal ?></b> permintaan pelanggan menunggu verifikasi pembayaran.</span><b class="ms-auto">Periksa sekarang <i class="bi bi-arrow-right"></i></b></a>
+        </div>
 
         <!-- Flash Message Container -->
         <?php if ($flash): ?>
@@ -205,3 +233,19 @@ $dbCheck = checkDatabaseStatus();
                 </div>
             </div>
         <?php endif; ?>
+        <script>
+            window.setInterval(async () => {
+                try {
+                    const response = await fetch('api/pending_count.php', {cache: 'no-store'});
+                    const result = await response.json();
+                    if (!result.status) return;
+                    const total = Number(result.data.total || 0);
+                    const badge = document.getElementById('pendingBadge');
+                    const notice = document.getElementById('pendingNotice');
+                    badge.textContent = total;
+                    badge.hidden = total === 0;
+                    notice.hidden = total === 0;
+                    document.getElementById('pendingNoticeCount').textContent = total;
+                } catch (error) {}
+            }, 15000);
+        </script>

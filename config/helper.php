@@ -10,6 +10,38 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/database.php';
 
+function currentStaffRole() {
+    $role = strtolower(trim((string)($_SESSION['user_role'] ?? $_SESSION['role'] ?? '')));
+    if ($role === 'administrator') $role = 'admin';
+    if ($role === 'cashier') $role = 'kasir';
+    return $role;
+}
+
+function isStaffUser() {
+    return !empty($_SESSION['user_id']) && in_array(currentStaffRole(), ['admin', 'kasir'], true);
+}
+
+function requireCashier() {
+    if (!isStaffUser()) {
+        header('Location: welcome.php');
+        exit;
+    }
+}
+
+function requireAdmin() {
+    if (currentStaffRole() !== 'admin' || empty($_SESSION['user_id'])) {
+        header('Location: pos.php');
+        exit;
+    }
+}
+
+function requireCustomer() {
+    if (empty($_SESSION['customer_id'])) {
+        header('Location: welcome.php?mode=customer');
+        exit;
+    }
+}
+
 /**
  * Format number to Indonesian Rupiah (Rp 150.000)
  */
@@ -80,7 +112,12 @@ function getPengaturan() {
         'pesan_struk'  => 'Terima kasih telah berbelanja di AGSMART MART!',
         'footer_struk' => 'Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.',
         'pajak_persen' => 0.00,
-        'lebar_struk'  => '58mm'
+        'lebar_struk'  => '58mm',
+        'bank_transfer' => 'BCA',
+        'rekening_transfer' => '0008305215',
+        'pemilik_rekening' => '',
+        'qris_image_url' => '',
+        'ewallet_info' => ''
     ];
 
     $db = getDB();
@@ -89,7 +126,14 @@ function getPengaturan() {
     try {
         $stmt = $db->query("SELECT * FROM tbl_pengaturan WHERE id = 1 LIMIT 1");
         $data = $stmt->fetch();
-        return $data ? array_merge($default, $data) : $default;
+        if (!$data) return $default;
+        $settings = array_merge($default, $data);
+        foreach (['bank_transfer', 'rekening_transfer', 'pemilik_rekening', 'qris_image_url', 'ewallet_info'] as $field) {
+            if (trim((string)($settings[$field] ?? '')) === '' && $default[$field] !== '') {
+                $settings[$field] = $default[$field];
+            }
+        }
+        return $settings;
     } catch (Exception $e) {
         return $default;
     }

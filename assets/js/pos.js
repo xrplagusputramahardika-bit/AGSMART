@@ -40,6 +40,44 @@ function playBeep(freq = 900, type = 'sine', duration = 0.08) {
     } catch (e) {}
 }
 
+// Indomaret Supermarket Scanner Beep (2400 Hz Sine Wave, 65ms crisp click)
+function playIndomaretBeep() {
+    try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2400, ctx.currentTime);
+        gain.gain.setValueAtTime(0.35, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.065);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.065);
+    } catch (e) {}
+}
+
+// Indomaret Error Buzz (Low double tone)
+function playIndomaretError() {
+    try {
+        const ctx = getAudioContext();
+        [0, 100].forEach(delay => {
+            setTimeout(() => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, ctx.currentTime);
+                gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.08);
+            }, delay);
+        });
+    } catch (e) {}
+}
+
 // Success Sound (double ding)
 function playSuccessSound() {
     playBeep(880, 'sine', 0.1);
@@ -48,7 +86,7 @@ function playSuccessSound() {
 
 // Error Sound (low buzz)
 function playErrorSound() {
-    playBeep(220, 'sawtooth', 0.18);
+    playIndomaretError();
 }
 
 // RFID / NFC Member Tap Chime (Tri-tone chord C-E-G)
@@ -112,13 +150,45 @@ function initKeyboardShortcuts() {
     });
 }
 
-// Barcode Scanner Listener
+// ========================================================
+// INDOMARET BARCODE SCANNER ENGINE
+// ========================================================
 let barcodeBuffer = '';
 let lastKeyTime = Date.now();
+let currentScanMultiplier = 1;
+let cameraStream = null;
+let cameraScanning = false;
+let barcodeDetector = null;
+
+// Multiplier Control (e.g. 5x per scan or 5*BRG-006)
+function setScanMultiplier(multiplier, btn) {
+    currentScanMultiplier = parseInt(multiplier) || 1;
+    document.querySelectorAll('.multiplier-pill').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    playBeep(1100, 'sine', 0.05);
+    showToast(`Mode Quantity Scan: ${currentScanMultiplier}x`, 'info');
+}
+
+// Toggle Quick Barcode Shelf
+function toggleQuickBarcodes() {
+    const shelf = document.getElementById('quickBarcodeShelf');
+    const icon = document.getElementById('quickBarcodeChevron');
+    if (!shelf) return;
+    if (shelf.classList.contains('d-none')) {
+        shelf.classList.remove('d-none');
+        if (icon) icon.className = 'bi bi-chevron-up';
+    } else {
+        shelf.classList.add('d-none');
+        if (icon) icon.className = 'bi bi-chevron-down';
+    }
+}
+
+// Global Hardware Barcode Scanner Listener (Auto-detects USB/Bluetooth scanner)
 function initBarcodeScanner() {
     window.addEventListener('keydown', (e) => {
         const currentTime = Date.now();
-        // Skip if typing in normal form input other than barcode/search/tap input
+
+        // Skip if typing in general inputs EXCEPT barcodeScanInput, searchProduct, or inputTapCard
         if (e.target.tagName === 'INPUT' && 
             e.target.id !== 'searchProduct' && 
             e.target.id !== 'barcodeScanInput' &&
@@ -126,13 +196,14 @@ function initBarcodeScanner() {
             return;
         }
 
-        if (currentTime - lastKeyTime > 100) {
+        // Hardware scanner keystroke burst is fast (< 75ms per char)
+        if (currentTime - lastKeyTime > 120) {
             barcodeBuffer = '';
         }
         lastKeyTime = currentTime;
 
         if (e.key === 'Enter') {
-            if (barcodeBuffer.length >= 3) {
+            if (barcodeBuffer.length >= 2) {
                 e.preventDefault();
                 const scanned = barcodeBuffer.trim();
                 barcodeBuffer = '';
@@ -144,8 +215,8 @@ function initBarcodeScanner() {
                     return;
                 }
 
-                // If prefix is MBR-, treat as Member Card Tap!
-                if (scanned.toUpperCase().startsWith('MBR-')) {
+                // If prefix is MBR- or CARD-, treat as Member Card Tap!
+                if (scanned.toUpperCase().startsWith('MBR-') || scanned.toUpperCase().startsWith('CARD-')) {
                     handleTapCard(scanned);
                     return;
                 }
@@ -157,20 +228,174 @@ function initBarcodeScanner() {
             barcodeBuffer += e.key;
         }
     });
+
+    // Auto focus barcode input on load
+    const scanInput = document.getElementById('barcodeScanInput');
+    if (scanInput) {
+        setTimeout(() => scanInput.focus(), 300);
+    }
 }
 
-function handleScannedBarcode(barcode) {
-    const card = document.querySelector(`.pos-product-card[data-barcode="${barcode}"]`);
-    if (card) {
-        addToCartFromElement(card);
-    } else {
-        const match = allProducts.find(p => p.kode_produk.toLowerCase() === barcode.toLowerCase());
-        if (match) {
-            addToCart(match);
-        } else {
-            playErrorSound();
-            showToast(`Produk dengan barcode '${barcode}' tidak ditemukan!`, 'danger');
+// Core Barcode Scanning Handler (Like Indomaret)
+function handleScannedBarcode(rawBarcode) {
+    if (!rawBarcode) return;
+    let barcode = String(rawBarcode).trim();
+    if (!barcode) return;
+
+    // Check Multiplier Syntax: e.g. "5*BRG-006" or "10*8990000000006"
+    let multiplier = currentScanMultiplier;
+    if (barcode.includes('*')) {
+        const parts = barcode.split('*');
+        const parsedMultiplier = parseInt(parts[0]);
+        if (!isNaN(parsedMultiplier) && parsedMultiplier > 0) {
+            multiplier = parsedMultiplier;
+            barcode = parts.slice(1).join('*').trim();
         }
+    }
+
+    // Check Member Card Prefix
+    if (barcode.toUpperCase().startsWith('MBR-') || barcode.toUpperCase().startsWith('CARD-')) {
+        handleTapCard(barcode);
+        return;
+    }
+
+    const cleanCode = barcode.toUpperCase();
+    
+    // Find matching product in allProducts (checks kode_produk, barcode, or id)
+    let match = allProducts.find(p => {
+        const code = String(p.kode_produk || '').toUpperCase();
+        const bcode = String(p.barcode || '').toUpperCase();
+        const id = String(p.id_produk);
+        return code === cleanCode || bcode === cleanCode || id === cleanCode;
+    });
+
+    // Fallback: check DOM elements
+    if (!match) {
+        const card = document.querySelector(`.retail-pos-card[data-barcode="${cleanCode}"], .pos-product-item[data-barcode="${cleanCode}"]`);
+        if (card) {
+            const id = card.getAttribute('data-id');
+            match = allProducts.find(p => p.id_produk == id);
+        }
+    }
+
+    if (match) {
+        if (parseInt(match.stok) <= 0) {
+            playIndomaretError();
+            showToast(`Stok ${match.nama_produk} HABIS! Tidak dapat ditambahkan.`, 'danger');
+            return;
+        }
+
+        // Add to cart with multiplier and Indomaret scanner beep
+        addToCart(match, multiplier, true);
+        showLastScannedBanner(match, multiplier);
+
+        // Reset multiplier to 1 after scan
+        if (currentScanMultiplier !== 1) {
+            setScanMultiplier(1, document.querySelector('.multiplier-pill:first-child'));
+        }
+
+        // Auto refocus barcode input for next scan
+        const scanInput = document.getElementById('barcodeScanInput');
+        if (scanInput) {
+            scanInput.value = '';
+            scanInput.focus();
+        }
+    } else {
+        playIndomaretError();
+        showToast(`Barcode '${barcode}' TIDAK DITEMUKAN di database kasir!`, 'danger');
+        const scanInput = document.getElementById('barcodeScanInput');
+        if (scanInput) {
+            scanInput.value = '';
+            scanInput.focus();
+        }
+    }
+}
+
+// Show Last Scanned Item Banner (Indomaret Cashier Display)
+function showLastScannedBanner(product, qty) {
+    const banner = document.getElementById('lastScannedBanner');
+    if (!banner) return;
+    document.getElementById('scanBannerName').textContent = product.nama_produk;
+    document.getElementById('scanBannerQty').textContent = qty;
+    document.getElementById('scanBannerPrice').textContent = formatRupiahJs(product.harga_jual);
+    document.getElementById('scanBannerSubtotal').textContent = formatRupiahJs(product.harga_jual * qty);
+    banner.classList.remove('d-none');
+}
+
+// Camera Barcode Scanner (Kamera HP / Laptop)
+function openCameraScanner() {
+    const modalEl = document.getElementById('cameraScannerModal');
+    if (!modalEl) return;
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+    startCameraScanner();
+}
+
+async function startCameraScanner() {
+    const video = document.getElementById('cameraVideo');
+    const statusText = document.getElementById('cameraStatusText');
+    if (!video) return;
+
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        video.srcObject = cameraStream;
+        await video.play();
+
+        // Check BarcodeDetector support
+        if ('BarcodeDetector' in window) {
+            try {
+                barcodeDetector = new BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e']
+                });
+            } catch (e) {
+                barcodeDetector = null;
+            }
+        }
+
+        cameraScanning = true;
+        scanCameraFrame();
+    } catch (e) {
+        console.error('Camera error:', e);
+        if (statusText) statusText.innerHTML = '<span class="text-danger">Kamera tidak dapat diakses atau diblokir.</span>';
+    }
+}
+
+async function scanCameraFrame() {
+    if (!cameraScanning) return;
+    const video = document.getElementById('cameraVideo');
+    if (!video || video.readyState < 2) {
+        requestAnimationFrame(scanCameraFrame);
+        return;
+    }
+
+    if (barcodeDetector) {
+        try {
+            const barcodes = await barcodeDetector.detect(video);
+            if (barcodes.length > 0) {
+                const detected = barcodes[0].rawValue;
+                stopCameraScanner();
+                const modalEl = document.getElementById('cameraScannerModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+
+                handleScannedBarcode(detected);
+                return;
+            }
+        } catch (e) {}
+    }
+
+    setTimeout(() => {
+        if (cameraScanning) requestAnimationFrame(scanCameraFrame);
+    }, 150);
+}
+
+function stopCameraScanner() {
+    cameraScanning = false;
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
     }
 }
 
@@ -408,33 +633,44 @@ function addToCartFromElement(el) {
     addToCart({ id_produk: id, kode_produk: barcode, nama_produk: name, harga_jual: price, stok: stock, satuan: unit });
 }
 
-// Add to Cart Object
-function addToCart(product) {
+// Add to Cart Object (Supports Multiplier & Indomaret Scanner)
+function addToCart(product, quantityToAdd = 1, isFromScanner = false) {
+    quantityToAdd = parseInt(quantityToAdd) || 1;
     const existingIndex = cart.findIndex(item => item.id_produk === product.id_produk);
 
     if (existingIndex > -1) {
-        if (cart[existingIndex].qty >= product.stok) {
-            playErrorSound();
+        if (cart[existingIndex].qty + quantityToAdd > product.stok) {
+            playIndomaretError();
             showToast(`Jumlah melebihi stok yang tersedia (${product.stok})!`, 'warning');
             return;
         }
-        cart[existingIndex].qty += 1;
+        cart[existingIndex].qty += quantityToAdd;
         cart[existingIndex].subtotal = cart[existingIndex].qty * cart[existingIndex].harga_jual;
     } else {
+        if (quantityToAdd > product.stok) {
+            playIndomaretError();
+            showToast(`Jumlah (${quantityToAdd}) melebihi stok yang tersedia (${product.stok})!`, 'warning');
+            return;
+        }
         cart.push({
             id_produk: product.id_produk,
             kode_produk: product.kode_produk,
+            barcode: product.barcode || product.kode_produk,
             nama_produk: product.nama_produk,
             harga_jual: parseFloat(product.harga_jual),
             stok: parseInt(product.stok),
             satuan: product.satuan || 'pcs',
-            qty: 1,
-            subtotal: parseFloat(product.harga_jual)
+            qty: quantityToAdd,
+            subtotal: parseFloat(product.harga_jual) * quantityToAdd
         });
     }
 
-    playBeep(920, 'sine', 0.08);
-    renderCart();
+    if (isFromScanner) {
+        playIndomaretBeep();
+    } else {
+        playBeep(920, 'sine', 0.08);
+    }
+    renderCart(product.id_produk);
 }
 
 // Update Cart Quantity
@@ -516,8 +752,8 @@ function getGrandTotal() {
     return Math.max(0, Math.round(taxableAmount + tax));
 }
 
-// Render Cart UI
-function renderCart() {
+// Render Cart UI (Highlights Scanned Product)
+function renderCart(highlightedId = null) {
     const container = document.getElementById('cartItemsList');
     const emptyState = document.getElementById('cartEmptyState');
     const badgeCount = document.getElementById('cartBadgeCount');
@@ -544,11 +780,15 @@ function renderCart() {
 
     let html = '';
     cart.forEach((item, index) => {
+        const isScanned = (highlightedId && highlightedId === item.id_produk);
         html += `
-            <div class="pos-cart-item">
+            <div class="pos-cart-item ${isScanned ? 'cart-item-scanned' : ''}" id="cartItemRow_${item.id_produk}">
                 <div class="d-flex justify-content-between align-items-start mb-1">
                     <div class="pe-2">
-                        <div class="fw-bold text-white small text-truncate" style="max-width: 180px;">${item.nama_produk}</div>
+                        <div class="fw-bold text-white small text-truncate" style="max-width: 180px;">
+                            ${item.nama_produk}
+                            ${isScanned ? '<span class="badge bg-success ms-1" style="font-size:0.65rem;">+Scan</span>' : ''}
+                        </div>
                         <div class="text-slate-400 small">${formatRupiahJs(item.harga_jual)} / ${item.satuan}</div>
                     </div>
                     <button class="btn btn-link text-danger p-0 border-0" onclick="removeItem(${index})" title="Hapus">

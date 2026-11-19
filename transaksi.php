@@ -5,6 +5,7 @@
  */
 $pageTitle = 'Riwayat Transaksi';
 require_once __DIR__ . '/config/helper.php';
+requireCashier();
 
 $db = getDB();
 

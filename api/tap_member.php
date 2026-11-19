@@ -5,6 +5,7 @@
  */
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/helper.php';
+if (empty($_SESSION['user_id'])) jsonResponse(false, 'Login kasir diperlukan.', null, 401);
 
 $code = '';
 
